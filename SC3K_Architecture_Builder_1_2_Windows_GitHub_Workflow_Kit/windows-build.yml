@@ -1,0 +1,53 @@
+name: Build SC3K Architecture Builder for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - '**/*.py'
+      - 'library/**'
+      - 'requirements.txt'
+      - '.github/workflows/windows-build.yml'
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Verify source files and bundled palettes
+        shell: pwsh
+        run: |
+          python -m py_compile facade_builder.py volume_editor.py
+          python -c "from pathlib import Path; assert Path('library/palette.png').is_file(); assert Path('library/palette_roof.png').is_file(); assert Path('library/windows/glass_16_17.png').is_file()"
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name "SC3K Architecture Builder" --add-data "library;library" facade_builder.py
+
+      - name: Bundle README with the Windows application
+        shell: pwsh
+        run: Copy-Item README_WINDOWS.txt "dist/SC3K Architecture Builder/README_WINDOWS.txt"
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: SC3K-Architecture-Builder-Windows
+          path: dist/SC3K Architecture Builder/
+          if-no-files-found: error
+          retention-days: 30
